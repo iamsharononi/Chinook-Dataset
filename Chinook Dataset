@@ -1,0 +1,229 @@
+----------------------------------------------------------------------------------------------------------------
+
+SELECT * FROM album
+SELECT * FROM artist
+SELECT * FROM customer
+SELECT * FROM employee
+SELECT * FROM genre
+SELECT * FROM invoice
+SELECT * FROM invoice_line
+SELECT * FROM media_type
+SELECT * FROM playlist
+SELECT * FROM playlist_track
+SELECT * FROM track
+
+
+------------------------------------------------------------------------
+	--ARTIST WITH THE HIGHEST NUMBER OF ALBUM RELEASED
+
+SELECT 
+	at.artist_id,
+	COUNT(ab.album_id) AS total_album,
+	at.name
+FROM
+	album AS ab
+JOIN
+	artist AS at
+ON
+	ab.artist_id = at.artist_id
+GROUP BY 1
+ORDER BY
+	total_album DESC
+LIMIT 1;
+
+/** Iron Maiden has the highest number of albums released totaling 21 albums with a margin difference of 7 albums as against Led Zeppelin **/
+/** Company can identify top-selling artists and tracks for marketing and promotion**/
+
+--------------------------------------------------------------------------------------------------------------------------
+		--TOP 10 BEST SELLING TRACKS
+
+SELECT
+	t.name, 
+	SUM(il.quantity) AS total_sales
+FROM
+	track t
+INNER JOIN
+	invoice_line il
+ON
+	t.track_id = il.track_id
+GROUP BY t.name
+ORDER BY
+	total_sales DESC
+LIMIT 10;
+
+/** The Trooper happens to be the best seller with a total of 5 sales whilst other tracks ties with one another**/
+
+----------------------------------------------------------------------------------------------------------
+
+	-- NUMBER OF FREQUENT BUYERS(Saying customer with higher than 4 purchase count)
+
+WITH CustomerPurchaseFrequency AS (
+  SELECT
+	c.customer_id,
+	COUNT(i.invoice_id) AS purchase_count
+  FROM
+	customer c
+  INNER JOIN
+	invoice i
+  ON
+	c.customer_id = i.customer_id
+  GROUP BY c.customer_id
+)
+SELECT 
+  CASE 
+    WHEN purchase_count >= 5 THEN 'Frequent Buyers'
+    WHEN purchase_count BETWEEN 2 AND 4 THEN 'Occasional Buyers'
+    ELSE 'New Customers'
+  END AS customer_segment,
+  COUNT(*) AS number_of_customers
+FROM
+	CustomerPurchaseFrequency
+GROUP BY
+	customer_segment;
+
+/** A customer count of  59 shows a frequency in purchases greater than 4**/
+
+----------------------------------------------------------------------------------
+
+--AVERAGE ORDER VALUE FOR EACH CITY IN EVERY STATE AND COUNTRY
+
+SELECT 
+  c.country,
+  c.state,
+  c.city,
+  AVG(i.total) AS average_order_value
+FROM
+	customer c
+INNER JOIN
+	invoice i
+ON
+	c.customer_id = i.customer_id
+GROUP BY 1,2,3
+ORDER BY 4 DESC;
+
+/** The City of Forth Worth (USA), Santiago (Chile) are the top cities in this catgory.**/
+/** Company can ptimize pricing and inventory based on average order value and sales trends**/
+
+
+-----------------------------------------------------------------------------------------------
+		/** TREND ANALYSIS **/
+-----------------------------------------------------------------------------------------------
+		-- SALES TREND OVER TIME
+
+SELECT 
+	invoice_date,
+	SUM(total) AS total_sales
+FROM
+	invoice
+WHERE
+	invoice_date <= CURRENT_DATE (-- Future-dated invoices was filtered out because, it may not be finalized, which can lead to data inconsistencies and incorrect conclusions)
+GROUP BY
+	invoice_date, billing_city
+ORDER BY
+	invoice_date DESC;
+
+/** There exist recurring payments or subscriptions, e.g., $8.91 and $0.99 which reoccurs month-end and at the beginning, respectively **/
+/** This ensure a stable cash flow for the business**/
+/** Increasing amounts in invoices also indicates a growing customer base or service expansion**/
+
+------------------------------------------------------------------------------------------------------------------------------------------
+	-- MONTHLY SALES REPORT
+
+SELECT 
+	EXTRACT(YEAR FROM invoice_date) AS year,
+	EXTRACT(MONTH FROM invoice_date) AS month,
+	SUM(total) AS total_sales
+FROM
+	invoice
+WHERE
+	invoice_date <= CURRENT_DATE
+GROUP BY
+	year, month
+ORDER BY
+	year DESC, month DESC;
+
+/** In 2024, sales have been relatively constant with a slight increase in July**/
+/** August sems to have a postive outlook being that it has recorded over 60% of July's sales whilst still in mid-month**/
+
+-----------------------------------------------------------------------------------
+
+	--REVENUE BY GENRE
+SELECT 
+	g.name, 
+	SUM(il.unit_price * il.quantity) AS total_revenue
+FROM
+	genre g
+INNER JOIN
+	track t
+ON
+	g.genre_id = t.genre_id
+INNER JOIN
+	invoice_line il
+ON
+	t.track_id = il.track_id
+GROUP BY
+	g.name
+ORDER BY
+	total_revenue DESC;
+
+/** Rock genre clearly shows itself as the heart of music with a huge dominance in the industry**/
+/** This is a good avenue to focus on Rock genre for new artist signings and promotions**/
+
+---------------------------------------------------------------------------------------------------
+--CUSTOMER EXPENDITURE PER MONTH 
+
+WITH CustomerMonthlySpending AS (
+  SELECT 
+  	i.customer_id,
+	COALESCE(first_name,'',last_name) AS customer_name,
+	EXTRACT(YEAR FROM invoice_date) AS year,
+    EXTRACT(MONTH FROM invoice_date) AS month,
+    SUM(total) AS monthly_spending
+  FROM
+	invoice i
+  LEFT JOIN
+	customer c
+  ON
+	i.customer_id = c.customer_id
+  GROUP BY
+	i.customer_id, year, month, customer_name
+)
+SELECT 
+	customer_name,
+	AVG(monthly_spending) AS average_monthly_spending
+FROM
+	CustomerMonthlySpending
+GROUP BY
+	customer_id, customer_name
+ORDER BY
+	average_monthly_spending DESC;
+
+/** Shows the monthly_spending average with Helena being the highest**/
+/** Business can target frequent buyers for loyalty programs and personalized offers**/
+------------------------------------------------------------------------------------------------------------
+
+-- CUSTOMER SEGMENTATION BASED ON EXPENDITURE
+
+WITH CustomerSpending AS (
+  SELECT 
+    customer_id, 
+    SUM(total) AS total_spent 
+  FROM 
+    invoice 
+  GROUP BY 
+    customer_id
+)
+SELECT 
+  CASE 
+    WHEN total_spent > 40 THEN 'High Spenders'
+     WHEN total_spent >= 30 AND total_spent <= 40 THEN 'Medium Spenders'
+    ELSE 'Low Spenders' 
+  END AS spending_segment,
+  COUNT(*) AS number_of_customers
+FROM 
+  CustomerSpending
+GROUP BY 
+  spending_segment
+
+/** There exist only high and medium spenders. This speaks of a loyal and engaged customer base**/
+/** Businesses can develop targeted marketing campaigns for high and medium spenders**/
